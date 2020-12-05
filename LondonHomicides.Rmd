@@ -1,0 +1,1230 @@
+
+---
+title: "London Homicides"
+author: david harrington
+output: html_document
+---
+  
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = TRUE, echo = TRUE, results = "hide", message=TRUE, warning=TRUE, error=TRUE)
+```
+
+## Objective
+To explore trends in homicides in London from 2008 to 2020. To evaluate whether the victims of homicide are distributed randomly across gender, location, age, cause of death and ethnicity. To evaluate whether the criminal justice system is consistent in resolving these crimes.
+
+## Audience
+
+College educated mass market audience who have curiosity about crime in the UK. The core data comes from a UK website named murder map which has profiled every murder case in London from January 2008 to now.
+
+## Importing the London homicide dataset
+
+On 31 December 2018, Iain Agar published open source data on the 10-year history of homicides in London on Kaggle. The data set was named "mmap.xlsx" and is presented as open data on Kaggle. The source files can be found here:  https://www.kaggle.com/iainagar/london-homicide-data-20082018 
+
+Ager stated that there was no readily available London homicide dataset in the public domain. His mmap dataset was constructed using a number of resources, most notably details of cases from the murdermap website which is a public interest advocacy service that draws attention to homicides in London. 
+
+I imported Iain Ager’s data set mmap.xlsx from Kaggle into R which covered the period from Jan 2008 to Dec 2018 and renamed the data frame it as mmap2018. I then independently contacted the publisher of the murdermap.co.uk website in London who generously agreed to provide data on additional homicide cases for the period 1 Jan 2019 to 1 November 2020 when I started this project.
+
+I bound the additional 2019 and 2020 cases to the original mmap.xlsx data set produced by Iain Agar and named the merged frame set as mmap in R. I completed extensive data wrangling to tidy up the variables, clean NA values and create consistent levels for categorical factors. There were a total of 149 new homicide cases in 2019 and 107 new homicide cases year-to-data as at 1 November 2020. The bedrock of the analysis and visualisation work in this project is the updated and consolidated mmap data frame - which covers the 12 year period from January 2008 to November 1, 2020.
+
+I also imported Iain Agers data set boroughpop which was also hosted on Kaggle which enables the analysis of homicide rates per 100,000 of population. I sourced data for the annual London population each year from 2008 to 2019 from a range of sources – which enabled me to calculate the homicide rate per 100,000 population over time for London as a whole. 
+
+
+I have used mmap7 for the review of 2008 to 2019 temporal trends in homicide rates in London which excludes the 2020 cases.
+
+## LondonHomicides Flex Dashboard showing my key data visualisations from this project
+https://go-dave.github.io/flexdashboard/
+
+## Acknowledgement of Iain Agar's original exploratory analysis
+
+Iain Ager published some of his exploratory analysis and visualisations for the period 2008 to 2018. I acknowledge where I have included elements of his exploratory code in my own analysis in the notes included in my Rmd.  Iain's orginal Rmd file including his analysis and visualisations can be found here: https://www.kaggle.com/iainagar/london-homicide-victims-exploratory-data-analysis.
+
+Two of the spatial visualisations included in my flexdashboard were inspired by Iain Agar's original work including his spatial visualisations that showed the geographic location of youth homicides and the distribution of  homicides coded by cause of death. These original visualisations are worth exploring but I have not included them in my flexdashboard. Iain's own visualisations are not included in this Rmd file or in my LondonHomicides flexdashboard on github but I encourage researchers to look at his exploratory work.
+
+In the 3 spatial visualisations that are included in my flexdashboard I created a choropleth chart which colour coded London's boroughs using the homicide rate per 100,000 population and overlayed this choropleth chart over the Esri.NatGeoWorldMap showing details of the boroughs and map references. I think this provides a strong visual sense of how homicides are clustered around the centre of London. I also explored the spatial clustering of all female victims of homicide in London and the clustering of homicides by ethnicity. I  used the Esri.NatGeoWorldMap in each of my three spatial visualisations as I believe it provides compelling detail of the street locations for homicides. 
+
+My Rmd file is also hosted on Github at this address https://github.com/go-dave/flexdashboard
+
+
+```
+```
+
+### Install packages
+detach("package:sp", unload = TRUE)
+install.packages("sp", dependencies=TRUE)
+install.packages("dplyr")
+install.packages("tidyr")
+install.packages("lubridate")
+install.packages("ggplot2")
+install.packages("sp")
+install.packages("vcd")
+install.packages("GGally")
+install.packages("colourpicker")
+install.packages("rgeos")
+install.packages("Hmisc",repos = "http://cran.us.r-project.org")
+install.packages("gapminder")
+install.packages("googleVis")
+install.packages("plotly")
+install.packages('acepack')
+install.packages("cowplot")
+install.packages("maptools") 
+install.packages("ggmap") 
+install.packages("broom")
+install.packages("mapproj")
+install.packages("leaflet")
+install.packages("ggmosaic")
+install.packages("leaflet.extras")
+install.packages("tidyverse")
+install.packages("reshape")
+install.packages("ggridges")
+install.packages("xlsx")
+```
+```
+  
+```{r echo=TRUE}
+
+### Loading libraries and reading data
+
+# The libraries used in this rmd are provided in the code below.
+
+library(flexdashboard)
+library(knitr)
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(stringr)
+library(lubridate)
+library(leaflet)
+library(leaflet.extras)
+library(tidyverse)
+library(reshape)
+library(ggridges)
+library(rgeos)
+library(ggmap)
+library(maptools)
+library(broom)
+library(mapproj)
+library(htmlwidgets)
+library(htmltools)
+library(plotly)
+
+## Import the data - London Homicide data, and London borough population data.
+
+# import original Iain Ager mmap.xlsx into R and save it as mmap18
+library(readxl)
+mmap18 <- read_excel("mmap.xlsx")
+
+
+# clean up the orginal data set and eliminate redundant variables
+
+library(dplyr)
+mmap18 = select(mmap18, -6,-7,-8,-13,-14,-16,-17,-18,-19)
+
+# reorder columns
+mmap18 <- mmap18[ , c(2, 1, 8, 9,5,4,3,10,6,11,7)]  
+
+
+# update column names
+colnames(mmap18) <- c("date", "ID", "latitude", "longitude", "ethnicity", "sex", "age", "ageGroup", "weapon", "borough", "status")
+
+# change strings to factors
+mmap18 <- mmap18 %>% mutate_if(is.character, as.factor) 
+
+# import the 2019 murder map data into R
+mmap19 <- read_excel("Murdermap2019.xlsx")
+
+mmap19 = select(mmap19, -3,-6)
+
+
+mmap19$longitude <- as.numeric(mmap19$longitude)
+
+
+# change strings to factors
+mmap19 <- mmap19 %>% mutate_if(is.character, as.factor) 
+
+colnames(mmap19) <- c("date", "ID", "latitude", "longitude", "ethnicity", "sex", "age", "ageGroup", "weapon", "borough", "status")
+
+# import the 2019 murder map data into R
+mmap20 <- read_excel("Murdermap2020.xlsx")
+
+mmap20 = select(mmap20, -3,-6)
+
+mmap20 <- mmap20 %>% mutate_if(is.character, as.factor) 
+
+colnames(mmap20) <- c("date", "ID", "latitude", "longitude", "ethnicity", "sex", "age", "ageGroup", "weapon", "borough", "status")
+
+
+##Merge mmap19 and mmap 20 using rbind function
+mmap19_20 = rbind(mmap19,mmap20)
+
+#change the levels for "sex" to align with mmap18
+mmap19_20 <- mmap19_20 %>%
+  mutate(sex = fct_recode(sex,
+                             "M" = "Male",
+                             "F" = "Female")) 
+
+# merge mmap19_20 with mmap18 to create mmap (integrated cases from 2008 to 2020)
+mmap = rbind(mmap18, mmap19_20)
+
+# save mmap as new file "mmap2020.csv"
+write.csv(mmap, "mmap2020.csv")
+
+
+```
+
+### Data Wrangling:
+
+I completed a range of data wrangling to ensure that the factor descriptions were consistent across years as between the original 2018 data set and the augmented 2019 and 2020 data sets. For example, I defined ethnicity for the cases in 2019 and 2020 based a review of the murder map people profiles on the murder map website and created consistent variable names for cause of death (weapon). I extended the ID variable established by Agar in 2018 and applied the same ID methodology to the additional cases in 2019 and 2020. Finally, I aligned the status variable because the murder map publisher had made numerous changes to his levels in the variable in 2019 and 2020.
+
+In my visualisation and analysis I included the 2019 cases for exploration of the 11-year annual temporal trends from 2008 to 2019 and included both the 2019 and 2020 cases for the 12 year mix of homicides by demographics such as gender, cause of death, ethnicity and age. This is because I only have year to data homicide data for the 2020 cases rather than full year data. 
+
+```{r}
+# See all levels in weapon variable
+levels(mmap$weapon) 
+
+
+# Change levels in Weapon column to include just 4 levels Knife, Gun, Assault and Other
+mmap3 <- mmap2 %>% mutate( weapon = fct_recode(weapon,
+                             "Other" = "Arson",
+                             "Other" = "Vehicle",
+                             "Other" = "Drug",
+                             "Other" = "Poison",
+                             "Other" = "Unknown",
+                             "Other" = "Ligature",
+                             "Other" = "Strangulation",
+                             "Other" = "Fire",
+                             "Other" = "Other",
+                             "Other" = "Blunt Object",
+                             "Assault" = "None"))
+
+
+
+# clean up the factor names within borough variable to enable the bind with boroughpop (ensure they are exactly the same!)
+mmap33 <- mmap3 %>% mutate(borough = fct_recode(borough, 
+                              "Westminster" = "City of Westminster",
+                              "Kingston upon Thames" = "Kingston-upon-Thames",
+                              "Kingston upon Thames" = "Kingston Upon Thames",
+                              "Kingston upon Thames" = "Kingston-Upon-Thames",
+                              "Richmond upon Thames" = "Richmond"))
+
+unique(levels(mmap33$borough))
+
+
+# Replicate date column (I would like to acknowledge the code used in Iain Agar exploratory Rmd file)
+mmap4 = cbind(mmap33, date2=rep(mmap3$date))
+
+
+# create new data frame mmap5 and separate date variable from mmap4 into year, month and day and save them as integers (I would like to acknowledge the code used in Iain Agar exploratory Rmd file)
+mmap5 = separate(mmap4, date2, c("year", "month", "day"), "-") %>%
+  mutate_if(is.character, as.integer) 
+
+# create consistent levels for status
+mmap5 <- mmap5 %>% mutate(status = fct_recode(status, 
+                              "Awaiting Trial" = "Awaiting trial",
+                              "Awaiting Trial" = "Awaiting Outcome",
+                              "Solved" = "Solved",
+                              "Solved" = "Self Defence",
+                              "Unsolved" = "Suspect dead",
+                              "Unsolved" = "Unsolved"))
+
+levels(mmap5$ethnicity)
+
+# simplify the categories of ethnicity down to 4 - similar code to Iain Agar's orgiginal exploratory analysis but I have retained 4 levels here)
+mmap5 <- mmap5 %>% mutate(ethnicity = fct_recode(ethnicity, 
+                              "Other" = "Mixed",
+                              "Black" = "Black",
+                              "Black" = "Black or Black British",
+                              "White" = "White",
+                              "White" = "White or White British",
+                              "Asian" = "Asian",
+                              "Asian" = "Asian or Asian British",
+                              "Other" = "Unknown",
+                              "Other" = "Any Other Ethnic Appearance"))
+
+levels(mmap5$ethnicity)
+
+# read the boroughpop file into R to access borough population data
+boroughpop <- read_excel("boroughpop.xlsx")
+
+
+# change column names in boroughpop
+colnames(boroughpop) = c("borough", "population")
+str(boroughpop)
+
+# join mmap5 and boroughpop data frames using "borough" 
+mmap6 <- left_join(mmap5, boroughpop, by = "borough")
+
+
+# make bourough a factor variable
+mmap6$borough <- as.factor(mmap6$borough)
+
+
+# create new variable for counting homicides by borough and homicides per 100,000 population by borough
+mmap6_sum <- mmap6 %>% select(borough, population) %>% group_by(borough) %>% mutate(count = n(), population = population, homicide_rate = (count*100000)/11/population) %>% distinct()
+                                                                                    
+# create mmap 7 by filtering mmap5 to just include full year data to end of calendar 2019
+mmap7 <- mmap6 %>% filter(year != "2020")
+
+
+mmap7 <-data.frame(mmap7)
+
+# remove NA cases for ethicity
+mmap8 <- mmap7 %>% filter(ethnicity != "NA")
+View(mmap8)
+
+# save mmap6_sum as data frame and name the data frame mmap9                                                                               
+mmap9 <- as.data.frame(mmap6_sum)
+
+# create new data frame mmap10 with just borough and homicide rate variables
+mmap10 <- mmap9 %>% select(borough, homicide_rate)
+
+# round the homicide_rate variable to 2 decimal places
+mmap10$homicide_rate <- round(mmap10$homicide_rate, 2)
+
+# arrange the data frame based on homicide rate variable descending order
+mmap10 <- mmap10 %>% arrange(desc(mmap10$homicide_rate)) 
+
+```
+
+## Data exploration
+
+I have extended Iain's data exploration to include calender 2019 data and YTD calendar 2020 data sourced from the murder map web site publisher in London.
+
+Based on this additional data there were 149 new homicide cases in 2019 and 107 new homicide cases year-to-data at 1 November 2020.
+
+I will include the 2019 data for exploration of the 11 year annual temporal trends from 2008 to 2019 and will include both the 2019 and 2020 cases for the 12 year mix of homicides by demographics such as gender, ethnicity and age. This is because I only have year to data homicide data for the 2020 cases.
+
+
+## Summary of the key so what’s from the analysis and visualisations
+
+*	The median age for all London homicide victims is 30
+*	After declining from 2008, the number of homicides in London increased after 2014
+*	When expressed as homicide cases per 100,000 population the rate of homicides fell from 2008 to 2014 to a low of 1.06 homicides per 100,000 but has steadily increased again from 2015 to 2019 to a peak of 1.66 homicides per 100,000, which is the highest rate since 2008
+*	Homicide rates are highest in the centre of London - peaking at over 7 victims per 100,000 in City of London (average for 2008 to 2019)
+*	The number of black victims of homicide has grown sharply since 2014
+*	Death by knife is the largest and most rapidly growing cause of death
+*	A higher proportion of male homicides are young
+*	There is a high concentration of male victims at a younger age with a mean age of 33 
+*	There are larger clusters of female victims near the centre of London 
+*	A higher proportion of black homicides are young
+*	77% of all homicide victims in London over the 12-year period were male 
+*	Black victims of homicide are younger than victims from White, Asian or Other ethnicities 
+*	Homicides involving black victims are less likely to get solved in the criminal justice system
+*	Homicides by victim ethnicity are generally dispersed evenly across London with a higher concentration of Black victims in Eastern boroughs
+*	Gun homicide victims are younger on average than other victims
+*	Homicides involving guns are also less likely to get solved in the criminal justice system
+*	The volume of young Black homicide victims in London is disproportionately high. White victims are overrepresented as homicide victims in the 50 and over age groups.
+
+
+## Data exploration - overall annual trends in homicide cases for London from 2008 to 2019
+
+sources: https://worldpopulationreview.com/world-cities/london-population 
+https://www.trustforlondon.org.uk/data/population-over-time/
+
+But I was unable to  found any single time series data for the population of Greater London. The boroughpop population by borough that we use in this analysis was taken from an OLS survey in 2016, which was the latest OLS survey of population
+
+I have interpolated the trends in London population from this OLS survey in 2017 and other point estimates for years 2010, 2011, 2015, 2018 and 2020.
+
+My estimates for population of greater London for each year from calendar 2008 to 2019 including annual data points from the sources above are:
+
+2008:7.8m, 2009:7.9m, 2010:8.0m, 2011:8.15m, 2012:8.25m, 2013:8.35m, 2014:8.5m, 2015:8.7m, 2016: 8.82m, 2017: 8.85m, 2018: 8.9m, 2019:9.0m
+
+I have used mmap7 for the review of 2008 to 2019 temporal trends in homicide rates in London which excludes the 2020 cases.
+
+```{r}
+
+str(mmap7)
+
+mmap7$year <- as.factor(mmap7$year)   
+
+# Number of homicides in London by Year, 2008-2019 ((I would like to acknowledge the code used in Iain Agar exploratory Rmd file but I have extended the data and made the visualization  animated using plotly)
+p1 <- ggplot(mmap7, aes(x = year)) +
+  geom_bar(stat='count', fill = "navyblue", color = "white") +
+  geom_label(stat = "count", aes(label = ..count..,y = ..count..), size = 3) +
+  labs(x = "Year", y = "Number of Homicides", title = "London homicides, 2008-2019")+
+  theme_bw()
+ggplotly(p1)
+
+p3 <- ggplot(LondonHomicideRate, aes(x= Year, y=Homicide_Rate)) +
+geom_bar(stat="identity", fill="navyblue", color = "white")+
+  geom_label(aes(label = Homicide_Rate, vjust = 1),size = 3)+
+  labs(x = "Year", y = "Rate", title = "London homicide rate per 100,000")+
+  theme_bw()
+ggplotly(p3)
+
+
+# save version to convert to plotly
+
+p2 <- ggplot(mmap7, aes(x = year)) +
+  geom_bar(stat='count', fill = "navyblue", color = "white") +
+  labs(x = "Calendar Year", y = "Number of Homicides", size = 2)+
+  theme_bw()
+ggplotly(p2)
+
+
+
+# calculate sum borough population based on the 2016 ONS data for boroughs
+GreaterLondonPop <- sum(boroughpop$population)
+GreaterLondonPop
+
+# create vector for Greater London Population for 2008 to 2019
+ GreaterLondonPopMillions <- c(7.8, 7.9, 8.0, 8.15, 8.25, 8.35, 8.5, 8.7, 8.82, 8.85, 8.9, 9.0)
+ 
+# Greater London Population in 100,000s
+GreaterLondon <- GreaterLondonPopMillions*10
+
+# Greater London total homicides
+
+LondonHomicides <- c(155, 130, 128, 121, 103, 113, 90, 120, 107, 130, 131, 149)
+
+Year <- c(2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019)
+
+# merge vectors into a data frame
+
+London <- data.frame(Year, LondonHomicides, GreaterLondon)
+
+London
+
+
+# Number of homicides per 100,000 population, 2008-2019
+
+LondonHomicideRate <- London %>% mutate(Homicide_Rate = LondonHomicides/GreaterLondon)
+
+LondonHomicideRate$Homicide_Rate <- round(LondonHomicideRate$Homicide_Rate,2)
+
+LondonHomicideRate$Year <- as.factor(LondonHomicideRate$Year)
+
+str(LondonHomicideRate)
+
+# chart Number of Homicides in London per 100,000 population, 2008 - 2019
+p3 <- ggplot(LondonHomicideRate, aes(x= Year, y=Homicide_Rate)) +
+geom_bar(stat="identity", fill="navyblue", color = "white")+
+  geom_label(aes(label = Homicide_Rate, vjust = 1),size = 3)+
+  labs(x = "Year", y = "Rate", title = "London homicide rate per 100,000")+
+  theme_bw()
+p3
+
+
+# create plotly version of the chart - as used in my flexdashboard code
+p4 <- ggplot(LondonHomicideRate, aes(x=Year, y=Homicide_Rate)) +
+geom_bar(stat="identity", fill="navyblue", color = "black")+
+  labs(x = "Year", y = "Rate", title = "London homicide rate per 100,000") + theme_bw()
+ggplotly(p4)
+
+
+# save version for juxtapose chart
+p4 <- ggplot(LondonHomicideRate, aes(x= as.factor(Year), y=Homicide_Rate)) +
+geom_bar(stat="identity", fill="navyblue", color = "white")+
+  geom_label(aes(label = Homicide_Rate, vjust = 1),size = 3)+
+  labs(x = "Year", y = "Rate", title = "London homicide rate per 100,000")+
+  theme_bw()
+p4
+
+library(cowplot)
+
+# juxtapose the plots of homicides and homicide rate
+plot_grid(p1, p3  + theme(axis.title.y=element_blank(),
+                                        axis.text.y=element_blank(),
+                                        axis.ticks.y = element_blank()), ncol=1, align="v",
+          rel_heights = c(2,2))
+
+
+
+```
+
+### Homicides by location/geography
+
+*	Homicide rates are highest in the centre of London - peaking at over 7 victims per 100,000 in City of London (average for 2008 to 2019)
+* There are clusters of locations where female homicides have occurred geographically during the 12-year period of 2008 to 2020 including; London, Hackney, Haringey, Camden, Tower Hamlets, Greenwich, Newham, Havering, Enfield, Brent, Hounslow, Barking & Dagenham
+* Homicides by victim ethnicity are generally dispersed evenly across London with a higher concentration of Black victims in Eastern boroughs.
+
+
+```{r echo=TRUE}
+## create a choropleth map showing murder rates per 100,000 population in each London borough
+
+# Install ggplot2 mapping packages
+
+library(rgeos)
+library(ggmap)
+library(maptools)
+library(broom)
+library(mapproj)
+library(rgdal)
+library(leaflet)
+
+# read shp file for just London boroughs
+
+# find layer names
+ogrListLayers("London_Borough_Excluding_MHW.shp")
+
+# save shape file using readOGR
+London_Borough =readOGR("London_Borough_Excluding_MHW.shp", layer="London_Borough_Excluding_MHW")
+
+# convert coordinates into lat long degrees
+proj4string(London_Borough) <- CRS("+init=epsg:27700")
+London_Borough.wgs84 <- spTransform(London_Borough, CRS("+init=epsg:4326"))
+
+
+# For Leaflet choropleth maps, we need to use a SpatialPolygonDataFrame
+
+class(London_Borough.wgs84)
+names(London_Borough.wgs84)
+
+# Rename the borough variable in mmap10 to "NAME" to match the "SpatialPolygonsDataFrame" file London_Ward2.wgs84
+
+names(mmap10)[names(mmap10) == "borough"] <- "NAME"
+
+str(mmap10)
+
+# make sure that the borough levels are identical
+mmap10 <- mmap10 %>% mutate(NAME = fct_recode(NAME, 
+                                                        
+                             "City of London" = "City and County of the City of London",
+                            
+                           "Westminster" = "City of Westminster"))  
+
+levels(mmap10$NAME)
+
+# merge mmap data into London_Ward.wgs84 SpatialPolygonsDataFrame using "DISTRICT"
+merge.mmap10 <- sp::merge(London_Borough.wgs84, mmap10, by = "NAME", duplicateGeoms = TRUE)
+
+# create a discrete colour scale based on quantiles for five levels
+
+bins <- quantile(
+  mmap10$homicide_rate,
+  probs = seq(0,1,.2), names = FALSE, na.rm = TRUE)
+bins
+
+# bins now contains five sequential colour levels so that 20 per cent of the data falls within each bin. The following histogram visualises the breaks used to create the scale.
+
+ggplot(data = mmap10,
+       aes(x = homicide_rate)) +
+  geom_histogram(colour = "white", bins = 40) +
+  geom_vline(
+    xintercept = quantile(
+      mmap10$homicide_rate,
+      probs = seq(0,1,0.2), na.rm = TRUE),
+    colour = "red", lwd = 1, lty = 2)
+
+
+# add the colour scale to the choropleth map.
+  pal <- colorBin(
+    "YlOrRd",
+    domain = mmap10$homicide_rate,
+    bins = bins
+  )
+
+# add the colour scale to the choropleth map.
+labels <- sprintf(
+  "%s
+%g homicide_rate",
+  merge.mmap10$NAME,
+  merge.mmap10$homicide_rate
+) %>% lapply(htmltools::HTML)
+
+title <- tags$div(
+  HTML('<h3>London Homicides</h3>')
+)
+
+p3 <- leaflet(merge.mmap10) %>%
+  setView(lng = -0.118092 , lat = 51.509865, zoom = 9)%>% addPolygons(
+  fillColor = ~pal(homicide_rate),
+  weight = 2,
+  opacity = 0.5,
+  color = "black",
+  dashArray = "3",
+  fillOpacity = 0.7,
+  highlight = highlightOptions(
+    weight = 5,
+    color = "#0000FF",
+    dashArray = "",
+    fillOpacity = 0.7,
+    bringToFront = TRUE),
+  label = labels,
+  labelOptions = labelOptions(
+    style = list("font-weight" = "normal", padding = "3px 8px"),
+    textsize = "15px",
+    direction = "auto")) %>%
+  addLegend(pal = pal,
+            values = ~homicide_rate,
+            opacity = 0.7, title = "Homicide Rate",
+            position = "bottomright") %>%
+  addControl(title, position = "topright") %>%
+  setView(lng=-0.1, lat=51.51, zoom=10) %>%
+  addProviderTiles("Esri.NatGeoWorldMap")
+p3
+
+
+```
+
+### Create a layered point map showing location of homicides coded by ethnicity of the victim
+
+* This layered point map shows the distribution of all homicides for 2008-2020 and provides colored circle markers based on the ethnicity of the victim and hover over data showing full details of each case based on the murder map data base.
+* Homicides by victim ethnicity are generally dispersed evenly across London with a higher concentration of Black victims in Eastern boroughs.
+* This visualisation was inspired by Iain Agar's visualisation of the geographic location of  homicides using circle markers coloured to show the cause of death that was included in his original exploratory analysis. For my visualisation I filtered the data to code the circle markers to show the ethnicity of victims for the period 2008 to 2020 to explore whether the distribution of victims by ethnicity was evenly distributed or clustered in London's boroughs and streets. My analysis includes two years of updated murder cases. I have used a different Leaflet map tile provider named Esri.NatGeoWorldMap that I have used for all my spatial visualisations that provides better detail of the street locations for homicides. I have also updated new content in the hover-over popups included in the visualisation code to provide better annotations of each homicide)
+
+
+```{r}
+
+## create layered point map showing locations of homicides coded by ethnicity 
+
+pal2 <- colorFactor(palette = c("darkgreen", "purple", "blue", "red"),
+                    levels = c("Black", "White", "Asian", "Other")) # Creating a 4 colour palette
+
+black <- mmap5 %>%
+  filter(ethnicity == "Black") # Grouping layers - black
+
+white <- mmap5 %>%
+  filter(ethnicity == "White") # Grouping layers - white
+
+asian <- mmap5 %>%
+  filter(ethnicity == "Asian") # Grouping layers - asian
+
+other <- mmap5 %>%
+  filter(ethnicity == "Other") # Grouping layers - other
+
+
+
+mmap5 %>%
+ leaflet() %>%
+  setView(lng=-0.1, lat=51.51, zoom=10) %>%
+  addProviderTiles("Esri.NatGeoWorldMap") %>%
+  addScaleBar(position = "bottomleft") %>%
+  addCircleMarkers(data = black,
+                   lng = ~longitude, 
+                   lat = ~latitude, 
+                   radius = 2, 
+                   color = ~pal2(ethnicity),
+                   group = "Black",
+                   popup = ~paste("<b>", ID, "</b>", "<br/>", date, "<br/>", age, "<br/>", sex, "<br/>", weapon, "<br/>", status)) %>%
+  addCircleMarkers(data = white,
+                   lng = ~longitude, 
+                   lat = ~latitude, 
+                   radius = 2, 
+                   color = ~pal2(ethnicity),
+                   group = "White",
+                   popup = ~paste("<b>", ID, "</b>", "<br/>", date, "<br/>", age, "<br/>", sex, "<br/>", weapon, "<br/>", status)) %>%
+  addCircleMarkers(data = asian,
+                   lng = ~longitude, 
+                   lat = ~latitude, 
+                   radius = 2, 
+                   color = ~pal2(ethnicity),
+                   group = "Asian",
+                   popup = ~paste("<b>", ID, "</b>", "<br/>", date, "<br/>", age, "<br/>", sex, "<br/>", weapon, "<br/>", status)) %>%
+  addCircleMarkers(data = other,
+                   lng = ~longitude, 
+                   lat = ~latitude, 
+                   radius = 2, 
+                   color = ~pal2(ethnicity),
+                   group = "Other",
+                   popup = ~paste("<b>", ID, "</b>", "<br/>", date, "<br/>", age, "<br/>", sex, "<br/>", weapon, "<br/>", status)) %>%
+
+
+  addLegend(position = "bottomright", 
+            pal = pal2, 
+            values = c("Black", "White", "Asian", "Other"),
+            title = "Legend") %>%
+  addLayersControl(
+    overlayGroups = c("Black",
+                      "White",
+                      "Asian",
+                      "Other"))
+
+```
+
+## Create a cluster map showing the location of female homicide victims across 2008 to 2020
+
+* The cluster map is filtered to show the location of all female homicides in the period 2008 to 2020. 
+* There are clusters of locations where female homicides have occurred geographically during the 12-year period of 2008 to 2020 including; London, Hackney, Haringey, Camden, Tower Hamlets, Greenwich, Newham, Havering, Enfield, Brent, Hounslow, Barking & Dagenham
+* This visualisation was inspired by Iain Agar's visualisation of the geographic location of youth homicides in his original exploratory analysis. For my visualisation I filtered the data to focus on all female victims of homicide in London for the period 2008 to 2020 to explore whether there are high risk locations for women in London's boroughs and streets. My analysis includes two years of updated murder cases. I have used a different Leaflet map tile provider named Esri.NatGeoWorldMap that I have used for all my spatial visualisations that provides better detail of the street locations for homicides. I have also updated new content in the hover-over popups included in the visualisation code to provide better annotations of each homicide)
+
+
+```{r}
+
+## Create a cluster map showing the location of female homicide victims across 2008 to 2020
+
+femaleVictims <- mmap5 %>%
+  filter(sex == 'F')
+
+femaleVictims %>% # Map showing all point data
+ leaflet() %>%
+  setView(lng =-0.1, lat=51.51, zoom=10) %>%
+  addProviderTiles(providers$Esri.NatGeoWorldMap) %>%
+  addScaleBar %>%
+  addCircleMarkers(lng = ~longitude, lat = ~latitude, popup = ~paste0("<b>", ID, "</b>", "<br/>", date, "<br/>", age, "<br/>", sex, "<br/>", weapon, "<br/>", borough), radius = 4, clusterOptions = markerClusterOptions)
+
+```
+
+### Trends in Gender and Homicides
+
+* During the  12 years male victims accounted for over 77% of all recorded homicide cases.
+
+* There is a significant concentration of male homicides in the 17 to 25 age range. Female homicides are more evenly spread across age groups
+
+* There were increases in the volume of female victims between 2016 and 2019.
+
+
+```{r echo=TRUE, message=TRUE, warning=TRUE, paged.print=TRUE}
+
+# create table showing gender and proportions - shows 77% of all victims are male in the period 2008 to 2020
+victimsex <- table(mmap5$sex)
+addmargins(victimsex)
+round((prop.table(victimsex)),digits = 2)
+
+
+# Stacked Bar Chart showing Number of homicides in London by victim gender, 2008-2019
+ggplot(mmap7, aes(x = year, fill = sex)) +
+  geom_bar(stat='count', facets = sex ~., colour = "black") +
+  scale_x_discrete(breaks = c(2008:2019)) +
+  scale_fill_brewer(palette = "Set1") +
+  labs(x = "Calendar Year", y = "Number of Homicides", fill = "Legend", title = "Number of homicides in London by victim gender, 2008-2019")
+
+str(mmap8)
+
+ p18 <- ggplot(mmap8, aes(x = year, fill = sex)) +
+  geom_density(stat='count', alpha = 0.6, colour = "black") +
+  scale_x_continuous(breaks = c(2008:2020)) +
+  scale_fill_brewer(palette = "Set1") +
+  labs(x = "Calendar Year", y = "Number of Homicides", fill = "legend", title = "Number of homicides in London by Gender, 2008-2019")+
+   theme_bw()
+ggplotly(p18)
+
+# Proportion Bar Chart showing Number of homicides in London by victim gender, 2008-2019 and mean male proportion at 77% in red (version of this used in the flexdashboard)
+ggplot(mmap7, aes(x = year, fill = sex)) +
+  geom_bar(stat='count', position = 'fill', colour = "black") +
+  geom_hline(yintercept = 0.77, colour = "yellow",linetype="dashed", size =1.5) +
+  scale_x_discrete(breaks = c(2008:2019)) +
+  scale_fill_brewer(palette = "Set1") +
+  labs(x = "Calendar Year", y = "Number of Homicides", fill = "Legend", title = "Number of homicides in London by victim gender, 2008-2019")+
+theme_bw()
+
+# Number of homicides in London by victim age group split by gender, 2008-2019 - facet vertical
+ggplot(mmap7, aes(x = ageGroup, fill = sex)) +
+  geom_bar(stat='count', color = "black") +
+    scale_fill_brewer(palette = "Set1") +
+  facet_grid(.~sex)+
+  geom_label(stat = "count", aes(label = ..count..,y = ..count..), fill = "white", size = 3) +
+  labs(x = "Age Group", y = "Number of Homicides", title = "Number of homicides in London by victim age group split by gender, 2008-2019")+
+  theme(axis.text.x = element_text(angle = 45, hjust=1))
+
+# Number of homicides in London by victim age group split by gender, 2008-2019 - facet horizontal
+ggplot(mmap7, aes(x = ageGroup, fill = sex)) +
+  geom_bar(stat='count', color = "black") +
+    scale_fill_brewer(palette = "Set1") +
+  facet_grid(sex~.)+
+  geom_label(stat = "count", aes(label = ..count..,y = ..count..), fill = "white", size = 4) +
+  labs(x = "Age Group", y = "Number of Homicides", title = "Number of homicides in London by victim age group split by gender, 2008-2019")+
+  theme(axis.text.x = element_text(angle = 45, hjust=1))
+
+# Number of homicides in London by gender for each year between 2008-2019 - facet vertical
+ggplot(mmap7, aes(x = year, fill = sex)) +
+  geom_bar(stat='count', colour = "black") +
+   facet_grid(.~sex)+
+  scale_x_discrete(breaks = c(2008:2019)) +
+  scale_fill_brewer(palette = "Set1") +
+  labs(x = "Calendar Year", y = "Number of Homicides", fill = "Legend", title = "Number of homicides in London by victim gender, 2008-2019")+
+  theme(axis.text.x = element_text(angle = 45, hjust=1))
+
+# boxplot of age of victim by gender of victim
+qplot (x = age, y = sex, data = mmap5, geom = "boxplot") +
+  stat_summary(fun.y="mean", colour="red", geom="point")
+  
+
+# Number of homicides in London by victim age group, 2008-2019
+p5 <- ggplot(mmap7, aes(x = ageGroup)) +
+  geom_bar(stat='count', fill = "navyblue", color = "black") +
+  geom_label(stat = "count", aes(label = ..count..,y = ..count..)) +
+  labs(x = "Victim Age Group", y = "Number of Homicides", title = "Number of homicides in London by victim age group, 2008-2019")+
+  coord_flip()+
+  theme_bw()
+ggplotly(p5)
+
+# histogram by ageGroup and gender
+ggplot(mmap7, aes(x = ageGroup, fill = sex)) +
+  geom_bar(position = "dodge", colour = "black") +
+  ggtitle("London Homicides by gender and age group, 2008-2019") +
+  scale_x_discrete("Victim Age") +
+  scale_y_continuous("Number of Homicides") +
+  labs(fill = "Legend") +
+  scale_fill_brewer(palette = "Set1")+
+  theme(axis.text.x = element_text(angle = 45, hjust=1))
+
+# calculate mean and median age for all homicides in London 2008-2020
+meanAge <- mean(mmap5$age)
+meanAge
+
+medianAge <- median(mmap5$age)
+medianAge
+
+# new bar chart with density overlay and box plot showing distribution of age across all data 2008 to 2020 (included in Flexdashboard)
+p6 <- ggplot(mmap5, aes(x = age))+ 
+  geom_density(fill = "red", alpha = 0.5)+ 
+  geom_histogram(colour = "white", fill = "navyblue", aes(age, ..density..), alpha = 0.5, bins = 100)+
+  labs(x = "Victim Age", y = "Proportion of Homicides", title = "Median age of all homicides is 30", subtitle ="Distribution of homicides in 
+London by victim age 2008-2020" )+
+  geom_vline(xintercept= median(mmap7$age)) +
+  annotate("text",label = "Mean = 34.6",x = 43, y = 0.04, colour = "red") +
+  geom_vline(xintercept= mean(mmap7$age),linetype=2) +
+  annotate("text",label = "Median = 30.0",x = 39, y = 0.035, colour = "red")+
+  scale_x_continuous(limits = c(0, 100))
+ggplotly(p6)
+
+# create box plot for age
+p7 <- ggplot(mmap5, aes(x = factor(1), y = age)) +
+  geom_boxplot(width = .50) + scale_y_continuous(limits = c(0, 100))
+p7
+
+
+# installing cowplot package
+library(cowplot)
+
+# juxtapose the histogram, density and boxplot for age across all data 2008 to 2020
+p8 <- plot_grid(p6, p7 + coord_flip() + theme(axis.title.y=element_blank(),
+                                        axis.text.y=element_blank(),
+                                        axis.ticks.y = element_blank()), ncol=1, align="v",
+          rel_heights = c(2,1))  
+  
+p8
+
+# density chart by age and gender (version included in my flexdashboard)
+p9 <- ggplot(mmap7, aes(x = age, fill = sex)) +
+  geom_density(alpha = 0.8)+
+  ggtitle("A higher proportion of male homicides are younger, 2008-2019")+
+  scale_fill_brewer(palette = "Set1")+
+    labs(fill = "Legend")+
+  scale_x_continuous("Victim Age")+
+  scale_y_continuous("Proportion of Homicides")+
+ theme_bw()
+ggplotly(p9)
+
+
+# jitter box plots for victims by gender
+p10 <- ggplot(data = mmap5, aes(x = sex, y = age)) + geom_boxplot(outlier.shape = NA) + geom_jitter(alpha = 1/5) +
+  ylab("age of victim") +
+  ggtitle("Men lose their lives to homicide at a younger age than women") +
+  stat_summary(fun="mean", colour="red", geom="point",shape = 16, size = 4) +
+  theme_minimal()
+p10
+
+# ridgeline density chart for homicides by year and ageGroup
+p11 <- ggplot(mmap5, aes(x = year, y = ageGroup, fill = ageGroup)) +
+  geom_density_ridges(scale = 5, alpha = 0.8) + 
+   scale_fill_brewer(palette = "RdYlBu") +
+  scale_y_discrete(expand = c(0, 3)) +     # will generally have to set the `expand` option
+  scale_x_continuous(expand = c(0, 0)) +   # for both axes to remove unneeded padding
+  coord_cartesian(clip = "off") + # to avoid clipping of the very top of the top ridgeline
+  labs(x = "Year", y = "Age Group", fill = "Legend", title = "Homicides in London by victim age group by year")+
+  theme_ridges()
+
+p11
+
+```
+
+### Trends in Ethnicity and homicide
+
+Defining people by ethnicity subjective and can be deceptive so great care was exercised here. The original mmap database created by Iain Ager included this variable and I retained this variable. I retained his levels for the cases in 2008 to 20018 and included my own estimates of the levels for new cases in 2019 and 2020. The publisher doesn’t include this variable in the original murder map case profiles.
+
+The variable level applies the British ethnicity rating system used in all government surveys and includes the following categories: 
+
+*	White or White British
+*	Asian or Asian British (including Indian, Pakistani, Bangladeshi, Chinese, Other Asian)
+*	Black or Black British
+*	Mixed or Multiple
+*	Gypsy or Traveller
+*	Other Ethnic
+
+I have retained these categories but simplified the levels in the variable ethnicity in my data set to include:
+
+*	White
+*	Asian
+*	Black
+*	Other Ethic (including other, gypsy, traveller and unknown)
+
+According to protocol I have treated Arabic middle eastern people including Egyptians and Lebanese as white. Iranians, Afghans, Armenians, Turks and other non-Arabic middle eastern races as West Asian which are included as part of the Asian ethic category in this data set which truncates the British ethnicity rating system.
+
+People from the African Continent are regarded as black, as well as Brazilian people of African descent. Polynesians, Papuans, and Melanesians are also regarded as black.
+
+Some of the key insights about homicides and ethnicity include:
+
+* Black homicides have been the fastest growing since 2014 and have been the main driver of the overall increase in homicides in London since 2014.
+*	The volume of young Black homicide victims in London is disproportionately high. White victims are overrepresented as homicide victims in the 50 and over age groups.
+*	There is a disproportionate distribution of black homicides in London's eastern boroughs.
+
+
+````
+
+
+
+```{r}
+
+
+# bar chart showing Number of homicides in London by ethnicity, 2008-2019
+ggplot(mmap8, aes(x = year, fill = ethnicity)) +
+  geom_bar(stat='count', colour = "black") +
+  scale_x_continuous(breaks = c(2008:2019)) +
+  scale_fill_brewer(palette = "BuPu") +
+  facet_grid(ethnicity~.)+
+  labs(x = "Calendar Year", y = "Number of Homicides", fill = "Legend", title = "Number of homicides in London by ethnicity, 2008-2019")
+  
+# density chart showing Number of homicides in London by ethnicity, 2008-2019
+ p15 <- ggplot(mmap8, aes(x = year, fill = ethnicity)) +
+  geom_density(stat='count') +
+  scale_x_continuous(breaks = c(2008:2020)) +
+  scale_fill_brewer(palette = "BuPu") +
+  facet_grid(ethnicity~.)+
+  labs(x = "Calendar Year", y = "Number of Homicides", fill = "legend", title = "Number of homicides in London by ethnicity, 2008-2019")
+p15
+
+# density chart showing Number of homicides in London by ethnicity, 2008-2019 (version included in my flexdashboard)
+ p16 <- ggplot(mmap8, aes(x = year, fill = ethnicity)) +
+  geom_density(stat='count', alpha = 0.6, colour = "black") +
+  scale_x_continuous(breaks = c(2008:2020)) +
+  scale_fill_brewer(palette = "Set1") +
+  labs(x = "Calendar Year", y = "Number of Homicides", fill = "legend", title = "Number of homicides in London by ethnicity, 2008-2019")+
+   theme_bw()
+p16
+  
+# density chart by age and ethnicity (version included in my flexdashboard)
+p13 <- ggplot(mmap8, aes(x = age, fill = ethnicity)) +
+  geom_density(alpha = 0.6)+
+  scale_fill_brewer(palette = "Set1")+
+    labs(fill = "Legend")+
+  scale_x_continuous("Victim Age")+
+  scale_y_continuous("Proportion of Homicides")+
+ theme_bw()
+p13
+
+
+# ridgeline density chart for homicides by victim ethnicity
+ggplot(mmap8, aes(x = year, y = ethnicity, fill = ethnicity)) +
+  geom_density_ridges(scale = 3, alpha =0.8) + 
+   scale_fill_brewer(palette = "RdYlBu") +
+  scale_y_discrete(expand = c(0, 3)) +     # will generally have to set the `expand` option
+  scale_x_continuous(expand = c(0, 0)) +   # for both axes to remove unneeded padding
+  coord_cartesian(clip = "off") + # to avoid clipping of the very top of the top ridgeline
+  labs(x = "Year", y = "Ethnicity", fill = "Legend", title = "Number of homicides in London by victim ethnicity, 2008-2019")+
+  theme_ridges()
+
+# boxplot of age of victim by ethnicity of victim
+qplot(x = ethnicity, y = age, data = mmap5, geom = "boxplot")+ 
+  stat_summary(fun.y = "mean", color ="red", geom="point")
+
+# jitter box plots for victims by ethincity (vesion included in my flexdashboard)
+p14 <- ggplot(data = mmap8, aes(x = reorder(ethnicity, age, "mean"), y = age), na.rm = TRUE)+ geom_boxplot(outlier.shape = NA) + geom_jitter(alpha = 1/5) +
+  ylab("Age of victim") +
+  xlab("Ethnicity")+
+  stat_summary(fun.y="mean", colour="red", geom="point",shape = 16, size = 4) +
+  theme_minimal()
+p14
+  
+```
+```
+### Trends in cause of death
+
+* Gun homicide victims are younger on average than other victims (2008-2019)
+* Since 2008 about 50% of all homicides were by knife, followed by assault with almost 25%. Firearms offenses accounted for just over 10%. 
+
+
+```{r}
+
+# stacked bar chart Number of homicides in London by weapon, 2008-2019
+  ggplot(mmap7, aes(x = year, fill = weapon)) +
+  geom_bar(stat='count', position = 'stack', colour = "black") +
+  scale_x_discrete(breaks = c(2008:2019)) +
+  scale_fill_brewer(palette = "RdBu") +
+  labs(x = "Calendar Year", y = "Number of Homicides", fill = "Legend", title = "Number of homicides in London by weapon, 2008-2019")+
+    theme_bw()
+  
+# bar chart Number of homicides in London by Weapon, 2008-2019 - facet horizontal
+ggplot(mmap7, aes(x = year, fill = weapon)) +
+  geom_bar(stat='count', colour = "black") +
+  facet_grid(weapon~.)+
+  scale_x_discrete(breaks = c(2008:2019)) +
+  scale_fill_brewer(palette = "Set1") +
+  labs(x = "Calendar Year", y = "Number of Homicides", fill = "Legend", title = "Number of homicides in London by Weapon, 2008-2019")
+  
+# Density chart Number of homicides in London by Weapon, 2008-2019
+  ggplot(mmap8, aes(x = year, fill = weapon)) +
+  geom_density(stat='count', colour = "black") +
+  facet_grid(weapon~.)+
+  scale_x_discrete(breaks = c(2008:2020)) +
+  scale_fill_brewer(palette = "BuPu") +
+  labs(x = "Calendar Year", y = "Number of Homicides", fill = "Legend", title = "Number of homicides in London by Weapon, 2008-2019")
+
+# ridgeline density chart for weapon, 2008-2020      
+ggplot(mmap5, aes(x = year, y = weapon, fill = weapon)) +
+  geom_density_ridges(scale = 3) + 
+   scale_fill_brewer(palette = "Set5") +
+  scale_y_discrete(expand = c(0, 3)) +     # will generally have to set the `expand` option
+  scale_x_continuous(expand = c(0, 0)) +   # for both axes to remove unneeded padding
+  coord_cartesian(clip = "off") + # to avoid clipping of the very top of the top ridgeline
+  theme_ridges()
+
+# density chart showing Number of homicides in London by ethnicity, 2008-2019 (version included in my flexdashboard)
+ p17 <- ggplot(mmap8, aes(x = year, fill = weapon)) +
+  geom_density(stat='count', alpha = 0.6, colour = "black") +
+  scale_x_continuous(breaks = c(2008:2020)) +
+  scale_fill_brewer(palette = "Set1") +
+  labs(x = "Calendar Year", y = "Number of Homicides", fill = "legend", title = "Number of homicides in London by Weapon, 2008-2019")+
+   theme_bw()
+ggplotly(p17)
+
+# jitter box plots for victims by type of weapon (version included in my flexdashboard)
+p19 <- ggplot (data = mmap8, aes(x = reorder(weapon, age, "mean"), y = age))+ geom_boxplot() + geom_jitter(alpha = 2/5) +
+  ylab("Age of victim") +
+  xlab("Cause of Death")+
+  stat_summary(fun.y="mean", colour="red", geom="point",shape = 16, size = 4) +
+  theme_minimal()
+ggplotly(p19)
+
+```
+
+### Homicide Rate by Age Group and borough
+*	Those aged 17-19 have the highest risk of homicide at more than 5 per 100,000 population
+*	Those aged 20-24 have the next highest risk of homicide at more than 4 per 100,000 population
+*	Those aged under 12 have the lowest homicide rates for all age groups in London at under 1 per 100,000 population
+*	City of London has the highest homicide rate at over 7 per 100,000 population. City of London has the highest homicide rate (largely due to its very low population). The London homicide rate may be an outsider value in this analysis
+*	Eleven other boroughs have averaged rates in excess of 2 per 100,000, those being Southwark, Haringey, Lambeth, Hackney, Islington, Newham, Westminster, Greenwich, Brent, Tower Hamlets and Lewisham.
+*	The London Borough of Southwark recorded the highest total number of homicides across the period 2008 to 2020 (87). This included the London Bridge attack in June 2017, during which 8 people were killed.
+
+
+
+```{r}
+
+# homicides by 100,000 population in boroughs (averaged over the 11 years of data) - horizontal
+p30 <- ggplot(mmap10, aes(x= reorder(borough, homicide_rate), y=homicide_rate)) +
+geom_bar(stat="identity", fill="navyblue", color = "white")+
+  coord_flip()+
+  geom_label(aes(label = homicide_rate, hjust = 1),size = 1)+
+  labs(x = "Borough", y = "Homicide Rate", title = "Borough average annual homicide rate per 100,000 2008-2019")+
+  theme_bw()
+p30
+
+
+# homicides by 100,000 population in boroughs (averaged over the 11 years of data) - vertical
+p31 <- ggplot(mmap10, aes(x= reorder(borough, -homicide_rate), y=homicide_rate)) +
+geom_bar(stat="identity", fill="navyblue", color = "white")+
+  geom_label(aes(label = homicide_rate, vjust = 1),size = 1)+
+  labs(x = "Borough", y = "Homicide Rate", title = "Borough average annual homicide rate per 100,000: 2008-2019")+
+  theme(axis.text.x = element_text(angle = 45, hjust=1))
+p31
+
+
+```
+## Homicide rate by age group
+
+The 17-19 age group has an average annual rate of homicide of 5.23 per 100,000 followed by 4.25 for those aged 20-24. The homicide rate for persons aged 12 and under and 35 and over are relatively lower.
+
+```{r}
+
+# analysis based on exploratory code by Iain Agar in 2018 updated to included 2019 cases
+
+# create new data frame to show ageGroup data by year
+ageyear <- mmap7 %>% 
+  select(ageGroup, year) %>%
+  group_by(ageGroup, year) %>%
+  tally() %>%
+  spread(ageGroup, n) 
+
+
+# calculate total homicides per ageGroup across 2008 to 2019
+homicidesA <- sum(ageyear$`A. Child 0-6`, na.rm= TRUE)
+homicidesB <- sum(ageyear$`B. Child 7-12`, na.rm= TRUE)
+homicidesC <- sum(ageyear$`C. Teen 13-16`, na.rm= TRUE)
+homicidesD <- sum(ageyear$`D. Teen 17-19`, na.rm= TRUE)
+homicidesE <- sum(ageyear$`E. Adult 20-24`, na.rm= TRUE)
+homicidesF <- sum(ageyear$`F. Adult 25-34`, na.rm= TRUE)
+homicidesG <- sum(ageyear$`G. Adult 35-44`, na.rm= TRUE)
+homicidesH <- sum(ageyear$`H. Adult 45-54`, na.rm= TRUE)
+homicidesI <- sum(ageyear$`I. Adult 55-64`, na.rm= TRUE)
+homicidesJ <- sum(ageyear$`J. Adult 65 over`, na.rm= TRUE)
+
+# consolidate total homicides per ageGroup across 2008 to 2019 into a new vector homicides_ageGroup
+homicides_ageGroup <- c(homicidesA, homicidesB, homicidesC, homicidesD, homicidesE, homicidesF, homicidesG, homicidesH, homicidesI, homicidesJ)
+
+# create vector agegp with unique values for the variable "ageGroup" in mmap5
+agegp <- unique(mmap5$ageGroup)
+
+# refactor to order the values for the variable "ageGroup" from youngest to oldest
+agegp <- factor(c("A. Child 0-6", "B. Child 7-12", "C. Teen 13-16", "D. Teen 17-19", "E. Adult 20-24", "F. Adult 25-34","G. Adult 35-44","H. Adult 45-54","I. Adult 55-64","J. Adult 65 over"))
+
+# create vector to calculate average homicides per year over 11 years from 2008 to 2019
+homicides_ageGroup_avg <- homicides_ageGroup/11
+
+# create population vector by age group - Source: ONS small area population estimates mid-2016 (latest ONS survey for UK)
+popn <- c(872040, 659384, 374989, 278134, 557975, 1654605, 1408946, 1151408, 828359, 1039161) 
+
+# create homicide-rate2 vector
+homicide_rate2  <- homicides_ageGroup_avg / popn * 100000 
+
+
+# Create a data frame (similar to Iain Agar exploratory code)
+mmap11 <- data.frame(agegp, round(homicide_rate2,2)) 
+
+colnames(mmap11) <- c("Age_Group", "Homicide_Rate")
+
+# create visualization for homicide rate by age group (version used in the flexdashboard with pre-attentive highlighting added)
+p20 <- ggplot(mmap11, aes(x = Age_Group, y = Homicide_Rate)) +
+  geom_bar(stat = 'identity', fill = "navyblue", colour = "black") +
+  ggtitle("London Homicide average rate per 100k by age group, 2008-2019") +
+  xlab("Age Group")+
+  ylab("Rate per 100,000")+
+  coord_flip()+
+  theme_bw()
+ggplotly(p20)
+
+
+```
+
+
+### Trends showing resolution of homicide cases in the criminal justice system
+
+Over the period 2008 to 2020 there were clear trends about what types of homicides are getting solved. These include:
+
+* Only 45% of homicides committed by firearms are solved, compared to 76% of assaults
+* Only 69% of homicides where the victim is black are solved compared to 82% of white vicitms and 80% of Asian victims
+* Only 67% of homicides where the victim is 20-24 are solved compared to children 71-12 where 92% are solved
+* 86% of homicides in Harrow are solved compared to 50% in City of London
+
+```
+```
+```{r}
+# Trends in Status
+
+## create tables showing probability of being solved given weapon, ethnicity and borough
+
+# by weapon type
+
+str(mmap5)
+status <- table(mmap5$weapon, mmap5$status, dnn = c("weapon", "status"))
+status
+
+statusProp <- prop.table(status, 1)
+statusProp
+
+# save as data frame
+weaponStatus <- data.frame(statusProp)
+
+# filter to just include probability of being solved
+weaponStatus1 <- weaponStatus %>% filter(status == "Solved")
+
+# change to percent
+weaponStatus1$percent <- round(weaponStatus1$Freq,2)*100
+
+mmap13 <- weaponStatus1 %>% arrange(weaponStatus1$percent)
+
+mmap13$percent <- as.integer(mmap13$percent)
+
+
+# bar chart Percent of Homicides Solved by Weapon Type 2008-2020 (version included in my flex dashboard with pre-attentive highlighting)
+p22 <- ggplot(mmap13, aes(x= reorder(weapon, percent), y=percent))+
+geom_bar(stat="identity", fill="navyblue", color = "white")+
+geom_label(size = 4, aes(label = percent, hjust = 0.2))+
+  coord_flip()+
+  labs(x = "Weapon", y = "Percent Solved", title = "Percent of Homicides Solved by Weapon Type 2008-2020")+
+  theme_bw()
+p22
+
+
+
+# by ethnicity
+
+levels(mmap8$ethnicity)
+
+status2 <- table(mmap8$ethnicity, mmap8$status, dnn = c("ethnicity", "status"))
+status2
+
+status2Prop <- round(prop.table(status2, 1),2)
+status2Prop
+
+# save as data frame
+ethnicityStatus <- data.frame(status2Prop)
+
+
+# filter to just include probability of being solved
+
+ethnicityStatus1 <- ethnicityStatus %>% filter(status == "Solved")
+
+# change to percent
+ethnicityStatus1$percent <- round(ethnicityStatus1$Freq,2)*100
+
+mmap14 <- ethnicityStatus1 %>% arrange(ethnicityStatus1$percent)
+
+# bar chart Percent of Homicides Solved by Ethnicity 2008-2020 (version included in my flex dashboard with pre-attentive highlighting)
+p23 <- ggplot(mmap14, aes(x= reorder(ethnicity, percent), y=percent))+
+geom_bar(stat="identity", fill="navyblue", color = "white")+
+  coord_flip()+
+  geom_label(aes(label = percent, hjust = 1),size = 4)+
+  labs(x = "Ethnicity", y = "Percent Solved", title = "Percent of Homicides Solved by Ethnicity Type 2008-2020")+
+  theme_bw()
+p23
+
+
+# by ageGroup
+
+levels(mmap8$ageGroup)
+
+status4 <- table(mmap8$ageGroup, mmap8$status, dnn = c("ageGroup", "status"))
+status4
+
+status4Prop <- round(prop.table(status4, 1),2)
+status4Prop
+
+# save as data frame
+AgeGroupStatus <- data.frame(status4Prop)
+
+
+# filter to just include probability of being solved
+
+AgeGroupStatus1 <- AgeGroupStatus %>% filter(status == "Solved")
+
+# change to percent
+AgeGroupStatus1$percent <- round(AgeGroupStatus1$Freq,2)*100
+
+
+# bar chart Percent of Homicides Solved by AgeGroup 2008-2020
+p24 <- ggplot(AgeGroupStatus1, aes(x= reorder(ageGroup, percent), y=percent))+
+geom_bar(stat="identity", fill="navyblue", color = "white")+
+  coord_flip()+
+  geom_label(aes(label = percent, hjust = 1),size = 3)+
+  labs(x = "AgeGroup", y = "Percent Solved", title = "Percent of Homicides Solved by Age Group 2008-2020")+
+  theme_bw()
+p24
+
+# by location
+status3 <- table(mmap5$borough, mmap5$status, dnn = c("borough", "status"))
+status3
+
+status3Prop <- prop.table(status3, 1)
+status3Prop
+
+# save as data frame
+boroughStatus <- data.frame(status3Prop)
+
+# filter to just include probability of being solved
+
+boroughStatus1 <- boroughStatus %>% filter(status == "Solved")
+
+# change to percent
+boroughStatus1$percent <- round(boroughStatus1$Freq,2)*100
+
+View(boroughStatus1)
+
+# bar chart Percent of Homicides Solved by borough 2008-2020
+p25 <- ggplot(boroughStatus1, aes(x= reorder(borough, percent), y=percent))+
+geom_bar(stat="identity", fill="navyblue", color = "white")+
+  coord_flip()+
+  geom_label(aes(label = percent, hjust = 1),size = 1.5)+
+  labs(x = "Borough", y = "Percent Solved", title = "Percent of Homicides Solved by Borough 2008-2020")+
+  theme_bw()
+p25
+
+
+```
+
+
+
+
+
